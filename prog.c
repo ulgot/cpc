@@ -38,7 +38,6 @@ int d_points;
 float *h_x, *h_xb, *h_dx;
 float *d_x, *d_xb, *d_dx;
 unsigned int *h_seeds, *d_seeds;
-curandState *d_states;
 
 size_t size_f, size_ui, size_p;
 curandGenerator_t gen;
@@ -163,7 +162,7 @@ float drift(float l_x)
 }
 
 float u01()
-  //easy to extend for any library with better statistics/algorithms (like GSL)
+//easy to extend for any library with better statistics/algorithms (e.g. GSL)
 {
   return rand()/RAND_MAX;
 }
@@ -272,13 +271,11 @@ void fold(float &nx, float x, float y, float &nfc, float fc)
 void run_moments(float *d_x, float *d_xb, float *d_dx)
 //actual moments kernel
 {
-    long idx = blockIdx.x * blockDim.x + threadIdx.x;
     float l_x, l_xb, l_dx; 
 
     //cache path and model parameters in local variables
-    l_x = d_x[idx];
-    l_xb = d_xb[idx];
-    l_state = d_states[idx];
+    l_x = d_x;
+    l_xb = d_xb;
 
     float l_Dg, l_Dp, l_lambda, l_mean, l_fa, l_fb, l_mua, l_mub;
     int l_comp;
@@ -292,56 +289,6 @@ void run_moments(float *d_x, float *d_xb, float *d_dx)
     l_fb = d_fb;
     l_mua = d_mua;
     l_mub = d_mub;
-
-    //run simulation for multiple values of the system parameters
-    long ridx = (idx/d_paths) % d_points;
-    l_dx = d_dx[ridx];
-
-    switch(d_domainx) {
-        case 'D':
-            l_Dg = l_dx;
-            break;
-        case 'p':
-            l_Dp = l_dx;
-            if (l_mean != 0.0f) l_lambda = (l_mean*l_mean)/l_Dp;
-            break;
-        case 'l':
-            l_lambda = l_dx;
-            if (l_mean != 0.0f) l_Dp = (l_mean*l_mean)/l_lambda;
-            break;
-        case 'a':
-            l_fa = l_dx;
-            if (l_comp == 1) {
-                l_fb = -l_fa*l_mub/l_mua;
-            } else if (l_mean != 0.0f) {
-                l_fb = (l_mean*(l_mua + l_mub) - l_fa*l_mub)/l_mua;
-            }
-            break;
-        case 'b':
-            l_fb = l_dx;
-            if (l_comp == 1) {
-                l_fa = -l_fb*l_mua/l_mub;
-            } else if (l_mean != 0.0f) {
-                l_fa = (l_mean*(l_mua + l_mub) - l_fb*l_mua)/l_mub;
-            }
-            break;
-        case 'm':
-            l_mua = l_dx;
-            if (l_comp == 1) {
-                l_mub = -l_fb*l_mua/l_fa;
-            } else if (l_mean != 0.0f) {
-                l_mub = (l_fb - l_mean)*l_mua/(l_mean - l_fa);
-            }
-            break;
-        case 'n':
-            l_mub = l_dx;
-            if (l_comp == 1) {
-                l_mua = -l_fa*l_mub/l_fb;
-            } else if (l_mean != 0.0f) {
-                l_mua = (l_fa - l_mean)*l_mub/(l_mean - l_fb);
-            }
-            break;
-    }
 
     //step size & number of steps
     float l_dt;
@@ -391,7 +338,7 @@ void run_moments(float *d_x, float *d_xb, float *d_dx)
     
     for (i = 0; i < l_steps; i++) {
 
-        predcorr(l_x, l_x, pcd, pcd, &l_state, l_Dg, l_Dp, l_lambda, l_comp, \
+        predcorr(l_x, l_x, pcd, pcd, l_Dg, l_Dp, l_lambda, l_comp, \
                  dcd, dcd, dst, dst, l_fa, l_fb, l_mua, l_mub, l_dt);
         
         //fold path parameters
@@ -406,9 +353,8 @@ void run_moments(float *d_x, float *d_xb, float *d_dx)
     }
 
     //write back path parameters to the global memory
-    d_x[idx] = l_x + xfc;
-    d_xb[idx] = l_xb;
-    d_states[idx] = l_state;
+    d_x = l_x + xfc;
+    d_xb = l_xb;
 }
 
 void prepare()
@@ -423,47 +369,15 @@ void prepare()
     size_p = h_points*sizeof(float);
 
     h_x = (float*)malloc(size_f);
-    h_seeds = (unsigned int*)malloc(size_ui);
 
     //initialization of rng
     srand(time(0));
-
-    //moments specific requirements
-    if (d_moments) {
-        h_trigger = h_steps*d_trans;
-        cudaMemcpyToSymbol(d_trigger, &h_trigger, sizeof(long));
-
-        h_xb = (float*)malloc(size_f);
-        h_dx = (float*)malloc(size_p);
-
-        float dxtmp = h_beginx;
-        float dxstep = (h_endx - h_beginx)/h_points;
-
-        long i;
-        
-        //set domainx
-        for (i = 0; i < h_points; i++) {
-            if (h_logx) {
-                h_dx[i] = pow(10.0f, dxtmp);
-            } else {
-                h_dx[i] = dxtmp;
-            }
-            dxtmp += dxstep;
-        }
-        
-        cudaMalloc((void**)&d_xb, size_f);
-        cudaMalloc((void**)&d_dx, size_p);
-    
-        cudaMemcpy(d_dx, h_dx, size_p, cudaMemcpyHostToDevice);
-    }
 }
 
 void initial_conditions()
 //set initial conditions for path parameters
 {
     int i;
-
-    curandGenerateUniform(gen, h_x, h_threads); //x in (0,1]
 
     for (i = 0; i < h_threads; i++) {
         h_x[i] = 2.0f*h_x[i] - 1.0f; //x in (-1,1]
@@ -584,15 +498,13 @@ int main(int argc, char **argv)
 
         av = (float*)malloc(size_p);
 
-        if ( !strcmp(h_domain, "1d") ) {
-            run_moments<<<h_grid, h_block>>>(d_x, d_xb, d_dx, d_states);
-            moments(av);
+        run_moments(d_x, d_xb, d_dx);
+        moments(av);
 
-            printf("#%c <<v>>\n", h_domainx);
-            for (i = 0; i < h_points; i++) {
-                printf("%e %e\n", h_dx[i], av[i]);
-            }   
-        }
+        printf("#%c <<v>>\n", h_domainx);
+        for (i = 0; i < h_points; i++) {
+          printf("%e %e\n", h_dx[i], av[i]);
+        }   
 
         free(av);
     }
