@@ -14,9 +14,9 @@ comp = 1
 mean = 2.5
 
 #Simulation
-paths = 10#24
-periods = 1000
-spp = 100
+paths = 13#24
+periods = 1000000
+spp = 200
 trans = 0.1
 
 out = 'epl_CPU_mean%s' % mean

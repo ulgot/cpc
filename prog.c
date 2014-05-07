@@ -378,10 +378,11 @@ int main(int argc, char **argv)
 
   for (i = 0; i < d_paths; ++i){
     initial_conditions();
+    printf("#p no %d: %f -> ",i, d_x);
     run_moments();
+    printf("(%f) %f\n",d_xb,d_x);
     av += moments();
   }
-  av /= (float)d_paths;
 
   printf("#<<v>>\n%e\n", av);
 

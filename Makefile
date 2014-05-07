@@ -23,3 +23,6 @@ cpu: prog.c
 icpu: prog.c
 	$(ICPU) $(IOPTCPU) -o progcpu prog.c -lm
 
+dcpu: double_prog.c
+	$(CCPU) $(OPTCPU) -o dprogcpu double_prog.c -lm
+
