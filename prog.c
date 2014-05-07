@@ -378,9 +378,7 @@ int main(int argc, char **argv)
 
   for (i = 0; i < d_paths; ++i){
     initial_conditions();
-    printf("%e -> ",d_x);
     run_moments();
-    printf("%e\n",d_x);
     av += moments();
   }
   av /= (float)d_paths;

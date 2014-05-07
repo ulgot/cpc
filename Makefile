@@ -5,7 +5,9 @@ OPT =--use_fast_math -O3
 CURAND =-L/usr/local/cuda/lib64 -lcurand
 #cpu
 CCPU = gcc
-OPTCPU =-ffast-math -O3 -fsingle-precision-constant
+OPTCPU =-ffast-math -O3
+ICPU = icc
+IOPTCPU =-fast -O3 
 
 all: single double
 
@@ -17,3 +19,7 @@ double: double_prog.cu
 
 cpu: prog.c
 	$(CCPU) $(OPTCPU) -o progcpu prog.c -lm
+
+icpu: prog.c
+	$(ICPU) $(IOPTCPU) -o progcpu prog.c -lm
+
