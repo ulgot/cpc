@@ -16,31 +16,12 @@
 //model
 float d_Dg, d_Dp, d_lambda, d_mean, d_fa, d_fb, d_mua, d_mub;
 int d_comp;
-float h_lambda, h_fa, h_fb, h_mua, h_mub, h_mean;
-int h_comp;
 
 //simulation
 float d_trans;
-int h_dev, h_block, h_grid, h_spp;
-long h_paths, d_periods, h_threads, h_steps, h_trigger;
+long d_paths, d_periods, d_steps, d_trigger;
 int d_spp;
-long d_paths, d_steps, d_trigger;
-
-//output
-char *h_domain;
-char h_domainx;
-float h_beginx, h_endx;
-int h_logx, h_points, d_moments;
-char d_domainx;
-int d_points;
-
-//vector
-float *h_x, *h_xb, *h_dx;
-float *d_x, *d_xb, *d_dx;
-unsigned int *h_seeds, *d_seeds;
-
-size_t size_f, size_ui, size_p;
-curandGenerator_t gen;
+float d_x, d_xb, d_dx, d_dt;
 
 static struct option options[] = {
     {"Dg", required_argument, NULL, 'a'},
@@ -55,8 +36,7 @@ static struct option options[] = {
     {"paths", required_argument, NULL, 'l'},
     {"periods", required_argument, NULL, 'm'},
     {"trans", required_argument, NULL, 'n'},
-    {"spp", required_argument, NULL, 'o'},
-    {"mode", required_argument, NULL, 'p'}
+    {"spp", required_argument, NULL, 'o'}
 };
 
 void usage(char **argv)
@@ -78,9 +58,6 @@ void usage(char **argv)
     printf("    -m, --periods=LONG      set the number of periods to LONG\n");
     printf("    -n, --trans=FLOAT       specify fraction FLOAT of periods which stands for transients\n");
     printf("    -o, --spp=INT           specify how many integration steps should be calculated for a single period of the driving force\n");
-    printf("Output params:\n");
-    printf("    -p, --mode=STRING       sets the output mode. STRING can be one of:\n");
-    printf("                            moments: the first moment <<v>>\n");
     printf("\n");
 }
 
@@ -89,7 +66,7 @@ void parse_cla(int argc, char **argv)
     float ftmp;
     int c, itmp;
 
-    while( (c = getopt_long(argc, argv, "a:b:c:d:e:f:g:h:i:l:m:n:o:p", options, NULL)) != EOF) {
+    while( (c = getopt_long(argc, argv, "a:b:c:d:e:f:g:h:i:l:m:n:o", options, NULL)) != EOF) {
         switch (c) {
             case 'a':
 		scanf(optarg, "%f", &d_Dg);
@@ -130,11 +107,6 @@ void parse_cla(int argc, char **argv)
                 break;
             case 'o':
 		scanf(optarg, "%d", &d_spp);
-                break;
-            case 'p':
-                if ( !strcmp(optarg, "moments") ) {
-                    d_moments = 1;
-                }
                 break;
             }
     }
@@ -268,107 +240,97 @@ void fold(float &nx, float x, float y, float &nfc, float fc)
     nfc = fc + floor(x/y)*y;
 }
 
-void run_moments(float *d_x, float *d_xb, float *d_dx)
+void run_moments()
 //actual moments kernel
 {
-    float l_x, l_xb, l_dx; 
+  long i;
+  //cache path and model parameters in local variables
+  //this is only to maintain original GPGPU code
+  float l_x = d_x,
+	l_xb;
 
-    //cache path and model parameters in local variables
-    l_x = d_x;
-    l_xb = d_xb;
+  int l_comp = d_comp;
 
-    float l_Dg, l_Dp, l_lambda, l_mean, l_fa, l_fb, l_mua, l_mub;
-    int l_comp;
+  float l_Dg = d_Dg,
+	l_Dp = d_Dp,
+	l_lambda = d_lambda,
+	l_mean = d_mean,
+	l_fa = d_fa,
+	l_fb = d_fb,
+	l_mua = d_mua,
+	l_mub = d_mub;
 
-    l_Dg = d_Dg;
-    l_Dp = d_Dp;
-    l_lambda = d_lambda;
-    l_comp = d_comp;
-    l_mean = d_mean;
-    l_fa = d_fa;
-    l_fb = d_fb;
-    l_mua = d_mua;
-    l_mub = d_mub;
+  //step size & number of steps
+  float l_dt;
 
-    //step size & number of steps
-    float l_dt;
-    long l_steps, l_trigger, i;
+  if (l_lambda != 0.0f) 
+      l_dt = 1.0f/l_lambda/d_spp;
 
-    if (l_lambda != 0.0f) 
-        l_dt = 1.0f/l_lambda/d_spp;
+  if (l_mua != 0.0f || l_mub != 0.0f) {
+      float taua, taub;
 
-    if (l_mua != 0.0f || l_mub != 0.0f) {
-        float taua, taub;
+      taua = 1.0f/l_mua;
+      taub = 1.0f/l_mub;
 
-        taua = 1.0f/l_mua;
-        taub = 1.0f/l_mub;
+      if (taua < taub) 
+	  l_dt = taua/d_spp;
+      else 
+	  l_dt = taub/d_spp;
+      
+  }
+  //store step size in global mem
+  d_dt = l_dt;
 
-        if (taua < taub) 
-            l_dt = taua/d_spp;
-        else 
-            l_dt = taub/d_spp;
-        
-    }
+  float l_steps = d_steps,
+	l_trigger = d_trigger;
 
-    l_steps = d_steps;
-    l_trigger = d_trigger;
+  //counters for folding
+  float xfc = 0.0f;
 
-    //counters for folding
-    float xfc;
-    
-    xfc = 0.0f;
+  int pcd, dcd, dst;
 
-    int pcd, dcd, dst;
+  //jump countdowns
+  if (l_lambda != 0.0f) pcd = (int) floor( -logf( u01() )/l_lambda/l_dt + 0.5f );
 
-    //jump countdowns
-    if (l_lambda != 0.0f) pcd = (int) floor( -logf( u01() )/l_lambda/l_dt + 0.5f );
+  if (l_mua != 0.0f || l_mub != 0.0f) {
+      float rn;
+      rn = u01();
 
-    if (l_mua != 0.0f || l_mub != 0.0f) {
-        float rn;
-        rn = u01();
+      if (rn < 0.5f) {
+	  dst = 0;
+	  dcd = (int) floor( -logf( u01() )/l_mua/l_dt + 0.5f);
+      } else {
+	  dst = 1;
+	  dcd = (int) floor( -logf( u01() )/l_mub/l_dt + 0.5f);
+      }
+  }
+  
+  for (i = 0; i < l_steps; i++) {
 
-        if (rn < 0.5f) {
-            dst = 0;
-            dcd = (int) floor( -logf( u01() )/l_mua/l_dt + 0.5f);
-        } else {
-            dst = 1;
-            dcd = (int) floor( -logf( u01() )/l_mub/l_dt + 0.5f);
-        }
-    }
-    
-    for (i = 0; i < l_steps; i++) {
+      predcorr(l_x, l_x, pcd, pcd, l_Dg, l_Dp, l_lambda, l_comp, \
+	       dcd, dcd, dst, dst, l_fa, l_fb, l_mua, l_mub, l_dt);
+      
+      //fold path parameters
+      if ( fabs(l_x) > 2.0f ) {
+	  fold(l_x, l_x, 2.0f, xfc, xfc);
+      }
 
-        predcorr(l_x, l_x, pcd, pcd, l_Dg, l_Dp, l_lambda, l_comp, \
-                 dcd, dcd, dst, dst, l_fa, l_fb, l_mua, l_mub, l_dt);
-        
-        //fold path parameters
-        if ( fabs(l_x) > 2.0f ) {
-            fold(l_x, l_x, 2.0f, xfc, xfc);
-        }
+      if (i == l_trigger) {
+	  l_xb = l_x + xfc;
+      }
 
-        if (i == l_trigger) {
-            l_xb = l_x + xfc;
-        }
+  }
 
-    }
-
-    //write back path parameters to the global memory
-    d_x = l_x + xfc;
-    d_xb = l_xb;
+  //write back path parameters to the global memory
+  d_x = l_x + xfc;
+  d_xb = l_xb;
 }
 
 void prepare()
 //prepare simulation
 {
     //number of steps
-    if (d_moments) h_steps = d_periods*h_spp;
-     
-    //host memory allocation
-    size_f = h_threads*sizeof(float);
-    size_ui = h_threads*sizeof(unsigned int);
-    size_p = h_points*sizeof(float);
-
-    h_x = (float*)malloc(size_f);
+    d_steps = d_periods*d_spp;
 
     //initialization of rng
     srand(time(0));
@@ -377,139 +339,35 @@ void prepare()
 void initial_conditions()
 //set initial conditions for path parameters
 {
-    int i;
-
-    for (i = 0; i < h_threads; i++) {
-        h_x[i] = 2.0f*h_x[i] - 1.0f; //x in (-1,1]
-    }
-
-    if (d_moments) {
-        memset(h_xb, 0, size_f);
-    }
-    
-    copy_to_dev();
+    d_x = 2.0f*u01() - 1.0f; //x in (-1,1]
 }
 
-void moments(float *av)
+float moments()
 //calculate the first moment of v
 {
-    float sx, sxb, tmp, taua, taub, dt;
-    int i, j;
+  float dt, av;
 
-    cudaMemcpy(h_x, d_x, size_f, cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_xb, d_xb, size_f, cudaMemcpyDeviceToHost);
-
-    for (j = 0; j < h_points; j++) {
-        sx = 0.0f;
-        sxb = 0.0f;
-
-        for (i = 0; i < h_paths; i++) {
-            sx += h_x[j*h_paths + i];
-            sxb += h_xb[j*h_paths + i];
-        }
-
-        //Poissonian
-        if (h_domainx == 'l') {
-            dt = 1.0f/h_dx[j]/h_spp;
-        } else if (h_domainx == 'p' && h_mean != 0.0f) {
-            dt = 1.0f/(h_mean*h_mean/h_dx[j])/h_spp;
-        } else if (h_lambda != 0.0f) {
-            dt = 1.0f/h_lambda/h_spp;
-        }
-
-        //Dichotomous
-        if (h_domainx == 'm') {
-            taua = 1.0f/h_dx[j];
-            taub = 1.0f/h_mub;
-
-            if (h_comp) {
-                tmp = 1.0f/(-h_fb*h_dx[j]/h_fa);
-            } else if (h_mean != 0.0f) {
-                tmp = (h_fb - h_mean)*h_dx[j]/(h_mean - h_fa);
-            } else {
-                tmp = taub;
-            }
-
-            if (taua <= tmp) {
-                dt = taua/h_spp;
-            } else {
-                dt = tmp/h_spp;
-            }
-        } else if (h_domainx == 'n') {
-            taua = 1.0f/h_mua;
-            taub = 1.0f/h_dx[j];
-
-            if (h_comp) {
-                tmp = 1.0f/(-h_fa*h_dx[j]/h_fb);
-            } else if (h_mean != 0.0f) {
-                tmp = (h_fa - h_mean)*h_dx[j]/(h_mean - h_fb);
-            } else {
-                tmp = taua;
-            }
-
-            if (taub <= tmp) {
-                dt = taub/h_spp;
-            } else {
-                dt = tmp/h_spp;
-            }
-        } else if (h_mua != 0.0f || h_mub != 0.0f) {
-            taua = 1.0f/h_mua;
-            taub = 1.0f/h_mub;
-
-            if (taua < taub) {
-                dt = taua/h_spp;
-            } else {
-                dt = taub/h_spp;
-            }
-        }
-            
-        av[j] = (sx - sxb)/( (1.0f - d_trans)*h_steps*dt )/h_paths;
-    }
-}
-
-void finish()
-//free memory
-{
-
-    free(h_x);
-    
-    if (d_moments) {
-        free(h_xb);
-        free(h_dx);
-    }
+  dt = d_dt;
+  av = (d_x - d_xb)/( (1.0f - d_trans)*d_steps*dt )/d_paths;
+  return av;
 }
 
 int main(int argc, char **argv)
 {
-    parse_cla(argc, argv);
-    if (!d_moments) {
-        usage(argv);
-        return -1;
-    }
+  parse_cla(argc, argv);
+  prepare();
+  initial_conditions();
+  
+  //asymptotic long time average velocity <<v>>
+  float av = 0.0f;
 
-    prepare();
-    
-    initial_conditions();
-    
-    //asymptotic long time average velocity <<v>>
-    if (d_moments) {
-        float *av;
-        int i;
+  for (i = 0; i < d_paths; ++i){
+    run_moments();
+    av += moments();
+  }
+  av /= (float)d_paths;
 
-        av = (float*)malloc(size_p);
+  printf("#<<v>>\n%e\n", av);
 
-        run_moments(d_x, d_xb, d_dx);
-        moments(av);
-
-        printf("#%c <<v>>\n", h_domainx);
-        for (i = 0; i < h_points; i++) {
-          printf("%e %e\n", h_dx[i], av[i]);
-        }   
-
-        free(av);
-    }
-
-    finish();
-
-    return EXIT_SUCCESS;
+  return EXIT_SUCCESS;
 }
