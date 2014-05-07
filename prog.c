@@ -69,47 +69,53 @@ void parse_cla(int argc, char **argv)
     while( (c = getopt_long(argc, argv, "a:b:c:d:e:f:g:h:i:l:m:n:o", options, NULL)) != EOF) {
         switch (c) {
             case 'a':
-		scanf(optarg, "%f", &d_Dg);
+		sscanf(optarg, "%f", &d_Dg);
+    printf("a\n");
                 break;
             case 'b':
-		scanf(optarg, "%f", &d_Dp);
+//		sscanf(optarg, "%f", &d_Dp);
+		d_Dp = atof(optarg);
+    printf("b\n");
                 break;
             case 'c':
-		scanf(optarg, "%f", &d_lambda);
+		sscanf(optarg, "%f", &d_lambda);
+    printf("c\n");
                 break;
             case 'd':
-		scanf(optarg, "%f", &d_fa);
+		sscanf(optarg, "%f", &d_fa);
+    printf("d\n");
                 break;
             case 'e':
-		scanf(optarg, "%f", &d_fb);
+		sscanf(optarg, "%f", &d_fb);
+    printf("e\n");
                 break;
             case 'f':
-		scanf(optarg, "%f", &d_mua);
+		sscanf(optarg, "%f", &d_mua);
+    printf("f\n");
                 break;
             case 'g':
-		scanf(optarg, "%f", &d_mub);
+		sscanf(optarg, "%f", &d_mub);
                 break;
             case 'h':
-		scanf(optarg, "%d", &d_comp);
+		sscanf(optarg, "%d", &d_comp);
                 break;
             case 'i':
-		scanf(optarg, "%f", &d_mean);
+		sscanf(optarg, "%f", &d_mean);
                 break;
             case 'l':
-		scanf(optarg, "%ld", &d_paths);
+		sscanf(optarg, "%ld", &d_paths);
                 break;
             case 'm':
-		scanf(optarg, "%ld", &d_periods);
+		sscanf(optarg, "%ld", &d_periods);
                 break;
             case 'n':
-		scanf(optarg, "%f", &d_trans);
+		sscanf(optarg, "%f", &d_trans);
                 break;
             case 'o':
-		scanf(optarg, "%d", &d_spp);
+		sscanf(optarg, "%d", &d_spp);
                 break;
             }
     }
-    printf("PCLA\n");
 }
 
 float drift(float l_x)
