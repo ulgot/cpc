@@ -135,7 +135,7 @@ float drift(float l_x)
 float u01()
 //easy to extend for any library with better statistics/algorithms (e.g. GSL)
 {
-  return rand()/RAND_MAX;
+  return (float)rand()/RAND_MAX;
 }
 
 float diffusion(float l_Dg, float l_dt)
@@ -347,21 +347,38 @@ float moments()
   return av;
 }
 
+void print_params()
+{
+  printf("#Dg %e\n",d_Dg);
+  printf("#Dp %e\n",d_Dp);
+  printf("#lambda %e\n",d_lambda);
+  printf("#fa %e\n",d_fa);
+  printf("#fb %e\n",d_fb);
+  printf("#mua %e\n",d_mua);
+  printf("#mub %e\n",d_mub);
+  printf("#comp %d\n",d_comp);
+  printf("#mean %e\n",d_mean);
+  printf("#paths %ld\n",d_paths);
+  printf("#periods %ld\n",d_periods);
+  printf("#trans %f\n",d_trans);
+  printf("#spp %d\n",d_spp);
+}
+
 int main(int argc, char **argv)
 {
-  printf("OK\n");
   parse_cla(argc, argv);
-  printf("OK\n");
-  usage(argv);
+  print_params();
+
+  if (0) usage(argv);
   prepare();
-  initial_conditions();
   
   //asymptotic long time average velocity <<v>>
   float av = 0.0f;
   int i;
 
   for (i = 0; i < d_paths; ++i){
-    printf("%e ->",d_x);
+    initial_conditions();
+    printf("%e -> ",d_x);
     run_moments();
     printf("%e\n",d_x);
     av += moments();
