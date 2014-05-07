@@ -103,13 +103,13 @@ void parse_cla(int argc, char **argv)
                 break;
             case 'n':
 		scanf(optarg, "%f", &d_trans);
-                d_trans = atof(optarg);
                 break;
             case 'o':
 		scanf(optarg, "%d", &d_spp);
                 break;
             }
     }
+    printf("PCLA\n");
 }
 
 float drift(float l_x)
@@ -141,65 +141,63 @@ float u01()
 
 float diffusion(float l_Dg, float l_dt)
 {
-    if (l_Dg != 0.0f) {
-        float r = u01();
-        if ( r <= 1.0f/6 ) {
-            return -sqrtf(6.0f*l_Dg*l_dt);
-        } else if ( r > 1.0f/6 && r <= 2.0f/6 ) {
-            return sqrtf(6.0f*l_Dg*l_dt);
-        } else {
-            return 0.0f;
-        }
-    } else {
-        return 0.0f;
-    }
+  if (l_Dg != 0.0f) {
+      float r = u01();
+      if ( r <= 1.0f/6 ) {
+	  return -sqrtf(6.0f*l_Dg*l_dt);
+      } else if ( r > 1.0f/6 && r <= 2.0f/6 ) {
+	  return sqrtf(6.0f*l_Dg*l_dt);
+      } else {
+	  return 0.0f;
+      }
+  } else {
+      return 0.0f;
+  }
 }
 
-float adapted_jump_poisson(int &npcd, int pcd, float l_lambda, float l_Dp, int l_comp, float l_dt)
+float adapted_jump_poisson(int *npcd, int pcd, float l_lambda, float l_Dp, int l_comp, float l_dt)
 {
-    if (l_lambda != 0.0f) {
-        if (pcd <= 0) {
-            float ampmean = sqrtf(l_lambda/l_Dp);
-           
-            npcd = (int) floor( -logf( u01() )/l_lambda/l_dt + 0.5f );
-
-            if (l_comp) {
-                float comp = sqrtf(l_Dp*l_lambda)*l_dt;
-                
-                return -logf( u01() )/ampmean - comp;
-            } else {
-                return -logf( u01() )/ampmean;
-            }
-        } else {
-            npcd = pcd - 1;
-            if (l_comp) {
-                float comp = sqrtf(l_Dp*l_lambda)*l_dt;
-                
-                return -comp;
-            } else {
-                return 0.0f;
-            }
-        }
-    } else {
-        return 0.0f;
+  if (l_lambda != 0.0f) {
+    if (pcd <= 0) {
+      float ampmean = sqrtf(l_lambda/l_Dp);
+      *npcd = (int) floor( -logf( u01() )/l_lambda/l_dt + 0.5f );
+      
+      if (l_comp) {
+	float comp = sqrtf(l_Dp*l_lambda)*l_dt;
+	return -logf( u01() )/ampmean - comp;
+      } 
+      else 
+	return -logf( u01() )/ampmean;
+    } 
+    else {
+      *npcd = pcd - 1;
+      if (l_comp) {
+	float comp = sqrtf(l_Dp*l_lambda)*l_dt;
+	return -comp;
+      } 
+      else 
+	return 0.0f;
     }
+  } else {
+    return 0.0f;
+  }
 }
 
-float adapted_jump_dich(int &ndcd, int dcd, int &ndst, int dst, float l_fa, float l_fb, float l_mua, float l_mub, float l_dt)
+float adapted_jump_dich(int *ndcd, int dcd, int *ndst, int dst, float l_fa, float l_fb, float l_mua, float l_mub, float l_dt)
 {
     if (l_mua != 0.0f || l_mub != 0.0f) {
         if (dcd <= 0) {
             if (dst == 0) {
-                ndst = 1; 
-                ndcd = (int) floor( -logf( u01() )/l_mub/l_dt + 0.5f );
+                *ndst = 1; 
+                *ndcd = (int) floor( -logf( u01() )/l_mub/l_dt + 0.5f );
                 return l_fb*l_dt;
             } else {
-                ndst = 0;
-                ndcd = (int) floor( -logf( u01() )/l_mua/l_dt + 0.5f );
+                *ndst = 0;
+                *ndcd = (int) floor( -logf( u01() )/l_mua/l_dt + 0.5f );
                 return l_fa*l_dt;
             }
         } else {
-            ndcd = dcd - 1;
+            *ndcd = dcd - 1;
             if (dst == 0) {
                 return l_fa*l_dt;
             } else {
@@ -211,9 +209,9 @@ float adapted_jump_dich(int &ndcd, int dcd, int &ndst, int dst, float l_fa, floa
     }
 }
 
-void predcorr(float &corrl_x, float l_x, int &npcd, int pcd, \
+void predcorr(float *corrl_x, float l_x, int *npcd, int pcd, \
                          float l_Dg, float l_Dp, float l_lambda, int l_comp, \
-                         int &ndcd, int dcd, int &ndst, int dst, float l_fa, float l_fb, float l_mua, float l_mub, float l_dt)
+                         int *ndcd, int dcd, int *ndst, int dst, float l_fa, float l_fb, float l_mua, float l_mub, float l_dt)
 /* simplified weak order 2.0 adapted predictor-corrector scheme
 ( see E. Platen, N. Bruti-Liberati; Numerical Solution of Stochastic Differential Equations with Jumps in Finance; Springer 2010; p. 503, p. 532 )
 */
@@ -230,14 +228,14 @@ void predcorr(float &corrl_x, float l_x, int &npcd, int pcd, \
 
     l_xtt = drift(predl_x);
 
-    corrl_x = l_x + 0.5f*(l_xt + l_xtt)*l_dt + adapted_jump_dich(ndcd, dcd, ndst, dst, l_fa, l_fb, l_mua, l_mub, l_dt, l_state) + diffusion(l_Dg, l_dt) + adapted_jump_poisson(npcd, pcd, l_lambda, l_Dp, l_comp, l_dt);
+    *corrl_x = l_x + 0.5f*(l_xt + l_xtt)*l_dt + adapted_jump_dich(ndcd, dcd, ndst, dst, l_fa, l_fb, l_mua, l_mub, l_dt) + diffusion(l_Dg, l_dt) + adapted_jump_poisson(npcd, pcd, l_lambda, l_Dp, l_comp, l_dt);
 }
 
-void fold(float &nx, float x, float y, float &nfc, float fc)
+void fold(float *nx, float x, float y, float *nfc, float fc)
 //reduce periodic variable to the base domain
 {
-    nx = x - floor(x/y)*y;
-    nfc = fc + floor(x/y)*y;
+  *nx = x - floor(x/y)*y;
+  *nfc = fc + floor(x/y)*y;
 }
 
 void run_moments()
@@ -293,8 +291,7 @@ void run_moments()
   if (l_lambda != 0.0f) pcd = (int) floor( -logf( u01() )/l_lambda/l_dt + 0.5f );
 
   if (l_mua != 0.0f || l_mub != 0.0f) {
-      float rn;
-      rn = u01();
+      float rn = u01();
 
       if (rn < 0.5f) {
 	  dst = 0;
@@ -307,16 +304,16 @@ void run_moments()
   
   for (i = 0; i < l_steps; i++) {
 
-      predcorr(l_x, l_x, pcd, pcd, l_Dg, l_Dp, l_lambda, l_comp, \
-	       dcd, dcd, dst, dst, l_fa, l_fb, l_mua, l_mub, l_dt);
+      predcorr(&l_x, l_x, &pcd, pcd, l_Dg, l_Dp, l_lambda, l_comp, \
+	       &dcd, dcd, &dst, dst, l_fa, l_fb, l_mua, l_mub, l_dt);
       
       //fold path parameters
       if ( fabs(l_x) > 2.0f ) {
-	  fold(l_x, l_x, 2.0f, xfc, xfc);
+	fold(&l_x, l_x, 2.0f, &xfc, xfc);
       }
 
       if (i == l_trigger) {
-	  l_xb = l_x + xfc;
+	l_xb = l_x + xfc;
       }
 
   }
@@ -329,17 +326,17 @@ void run_moments()
 void prepare()
 //prepare simulation
 {
-    //number of steps
-    d_steps = d_periods*d_spp;
+  //number of steps
+  d_steps = d_periods*d_spp;
 
-    //initialization of rng
-    srand(time(0));
+  //initialization of rng
+  srand(time(NULL));
 }
 
 void initial_conditions()
 //set initial conditions for path parameters
 {
-    d_x = 2.0f*u01() - 1.0f; //x in (-1,1]
+  d_x = 2.0f*u01() - 1.0f; //x in (-1,1]
 }
 
 float moments()
@@ -347,22 +344,27 @@ float moments()
 {
   float dt, av;
 
-  dt = d_dt;
-  av = (d_x - d_xb)/( (1.0f - d_trans)*d_steps*dt )/d_paths;
+  av = (d_x - d_xb)/( (1.0f - d_trans)*d_steps*d_dt )/d_paths;
   return av;
 }
 
 int main(int argc, char **argv)
 {
+  printf("OK\n");
   parse_cla(argc, argv);
+  printf("OK\n");
+  usage(argv);
   prepare();
   initial_conditions();
   
   //asymptotic long time average velocity <<v>>
   float av = 0.0f;
+  int i;
 
   for (i = 0; i < d_paths; ++i){
+    printf("%e ->",d_x);
     run_moments();
+    printf("%e\n",d_x);
     av += moments();
   }
   av /= (float)d_paths;
