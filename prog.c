@@ -70,28 +70,21 @@ void parse_cla(int argc, char **argv)
         switch (c) {
             case 'a':
 		sscanf(optarg, "%f", &d_Dg);
-    printf("a\n");
                 break;
             case 'b':
-//		sscanf(optarg, "%f", &d_Dp);
-		d_Dp = atof(optarg);
-    printf("b\n");
+		sscanf(optarg, "%f", &d_Dp);
                 break;
             case 'c':
 		sscanf(optarg, "%f", &d_lambda);
-    printf("c\n");
                 break;
             case 'd':
 		sscanf(optarg, "%f", &d_fa);
-    printf("d\n");
                 break;
             case 'e':
 		sscanf(optarg, "%f", &d_fb);
-    printf("e\n");
                 break;
             case 'f':
 		sscanf(optarg, "%f", &d_mua);
-    printf("f\n");
                 break;
             case 'g':
 		sscanf(optarg, "%f", &d_mub);
