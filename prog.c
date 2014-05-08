@@ -341,10 +341,7 @@ void initial_conditions()
 float moments()
 //calculate the first moment of v
 {
-  float dt, av;
-
-  av = (d_x - d_xb)/( (1.0f - d_trans)*d_steps*d_dt )/d_paths;
-  return av;
+  return (d_x - d_xb)/( (1.0f - d_trans)*d_steps*d_dt )/d_paths;
 }
 
 void print_params()
@@ -367,7 +364,7 @@ void print_params()
 int main(int argc, char **argv)
 {
   parse_cla(argc, argv);
-  print_params();
+  //print_params();
 
   if (0) usage(argv);
   prepare();
@@ -378,13 +375,12 @@ int main(int argc, char **argv)
 
   for (i = 0; i < d_paths; ++i){
     initial_conditions();
-    printf("#p no %d: %f -> ",i, d_x);
     run_moments();
-    printf("(%f) %f\n",d_xb,d_x);
     av += moments();
   }
 
-  printf("#<<v>>\n%e\n", av);
+  //printf("#<<v>>\n%e\n", av);
+  printf("%e\n", av);
 
   return EXIT_SUCCESS;
 }
