@@ -363,6 +363,8 @@ void print_params()
 
 int main(int argc, char **argv)
 {
+  time_t start,end;
+  double tdif;
   parse_cla(argc, argv);
   //print_params();
 
@@ -373,14 +375,22 @@ int main(int argc, char **argv)
   float av = 0.0f;
   int i;
 
+  int dump_av = 2;
+  printf("#[1]<<v>> [2]cpu_time [3]no_of_runs\n");
+  time(&start);
   for (i = 0; i < d_paths; ++i){
+
     initial_conditions();
     run_moments();
     av += moments();
-  }
 
-  //printf("#<<v>>\n%e\n", av);
-  printf("%e\n", av);
+    if (i == dump_av - 1){
+      time(&end);
+      fprintf(stdout,"%e %.0lf %d\n", av, difftime(end,start), i+1);
+      fflush(stdout);
+      dump_av *= 2;
+    }
+  }
 
   return EXIT_SUCCESS;
 }
