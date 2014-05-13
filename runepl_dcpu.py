@@ -14,14 +14,14 @@ mean = 2.5
 
 #Simulation
 paths = 1024
-periods = 1000
+periods = 10000
 spp = 100
 trans = 0.1
 
 for Dp in [0.1, 0.3, 0.5, 0.8, 1]:
   lmd = mean*mean/Dp
-  out = 'epl_CPU_mean%s' % mean
-  _cmd = './progcpu --Dg=%s --Dp=%s --lambda=%s --fa=%s --fb=%s --mua=%s --mub=%s --comp=%d --mean=%s --paths=%d --periods=%s --spp=%d --trans=%s >> %s.dat' % (Dg, Dp, lmd, fa, fb, mua, mub, comp, mean, paths, periods, spp, trans, out)
+  out = 'epl_DCPU_mean%s' % mean
+  _cmd = './dprogcpu --Dg=%s --Dp=%s --lambda=%s --fa=%s --fb=%s --mua=%s --mub=%s --comp=%d --mean=%s --paths=%d --periods=%s --spp=%d --trans=%s >> %s.dat' % (Dg, Dp, lmd, fa, fb, mua, mub, comp, mean, paths, periods, spp, trans, out)
   output = open('%s.dat' % out, 'a')
   print >>output, '#%s' % _cmd
   output.close()
