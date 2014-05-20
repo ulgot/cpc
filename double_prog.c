@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
+#include <sys/time.h>
 
 #define PI 3.14159265358979
 
@@ -327,6 +328,7 @@ void prepare()
 {
   //number of steps
   d_steps = d_periods*d_spp;
+  d_trigger = d_trans*d_steps;
 
   //initialization of rng
   srand(time(NULL));
@@ -341,7 +343,7 @@ void initial_conditions()
 double moments()
 //calculate the first moment of v
 {
-  return (d_x - d_xb)/( (1.0 - d_trans)*d_steps*d_dt )/d_paths;
+  return (d_x - d_xb)/( (1.0 - d_trans)*d_steps*d_dt );
 }
 
 void print_params()
@@ -361,8 +363,16 @@ void print_params()
   printf("#spp %d\n",d_spp);
 }
 
+long long current_timestamp() {
+  struct timeval te; 
+  gettimeofday(&te, NULL); // get current time
+  long long milliseconds = te.tv_sec*1000LL + te.tv_usec/1000; // caculate milliseconds
+  return milliseconds;
+}
+
 int main(int argc, char **argv)
 {
+  long long t0, te;
   parse_cla(argc, argv);
   //print_params();
 
@@ -373,14 +383,22 @@ int main(int argc, char **argv)
   double av = 0.0;
   int i;
 
+  int dump_av = 2;
+  printf("#[1]<<v>> [2]cpu_time(milisec) [3]no_of_runs\n");
+  t0 = current_timestamp();
   for (i = 0; i < d_paths; ++i){
+
     initial_conditions();
     run_moments();
     av += moments();
-  }
 
-  //printf("#<<v>>\n%e\n", av);
-  printf("%e\n", av);
+    if (i == dump_av - 1){
+      te = current_timestamp();
+      fprintf(stdout,"%e %lf %d\n", av/(i+1), (double)(te-t0), i+1);
+      fflush(stdout);
+      dump_av *= 2;
+    }
+  }
 
   return EXIT_SUCCESS;
 }
