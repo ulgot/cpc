@@ -7,7 +7,8 @@ CURAND =-L/usr/local/cuda/lib64 -lcurand
 CCPU = gcc
 OPTCPU =-ffast-math -O3
 ICPU = icc
-IOPTCPU =-fast -O3 
+IOPTCPU =-O3 
+#IOPTCPU =-fast -O3 
 
 all: single double
 
@@ -25,4 +26,9 @@ icpu: prog.c
 
 dcpu: double_prog.c
 	$(CCPU) $(OPTCPU) -o dprogcpu double_prog.c -lm
+
+
+poisson: poisson.c
+	$(CCPU) $(OPTCPU) -o poisson poisson.c -lm
+
 
