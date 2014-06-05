@@ -242,7 +242,7 @@ int main(int argc, char **argv)
   int i;
 
   int dump_av = 2;
-  printf("#[1]<<v>> [2]cpu_time(milisec) [3]no_of_runs\n");
+  printf("#[1]no_of_runs [2]cpu_time(milisec) [3]Gsteps/sec [4]<<v>>\n");
   t0 = current_timestamp();
   for (i = 0; i < d_paths; ++i){
 
