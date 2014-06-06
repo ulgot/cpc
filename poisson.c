@@ -253,7 +253,7 @@ int main(int argc, char **argv)
     if (i == dump_av - 1){
       te = current_timestamp();
       tsim = te - t0;
-      fprintf(stdout,"%d %lf %lf %e\n", i+1, tsim, d_paths*d_periods*d_spp*(1.0e-12)/tsim,av/(i+1));
+      fprintf(stdout,"%d %lf %e %e\n", i+1, tsim, d_paths*d_periods*d_spp*(1.0e-12)/tsim,av/(i+1));
       fflush(stdout);
       dump_av *= 2;
     }
