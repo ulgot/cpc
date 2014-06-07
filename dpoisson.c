@@ -252,7 +252,7 @@ int main(int argc, char **argv)
 
     initial_conditions();
     run_moments();
-    av += moments();
+    //av += moments();
 
     if (i == dump_av - 1){
       te = current_timestamp();
