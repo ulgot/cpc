@@ -19,8 +19,8 @@ float d_Dp, d_lambda, d_mean; // poissonian noise
 
 //simulation
 float d_trans;
-long d_paths, d_periods, d_steps;
-int d_spp, d_samples;
+long d_paths, d_periods, d_steps, d_trigger;
+int d_spp;
 float d_x, d_xb, d_dx, d_dt;
 
 static struct option options[] = {
@@ -30,8 +30,7 @@ static struct option options[] = {
     {"paths", required_argument, NULL, 'l'},
     {"periods", required_argument, NULL, 'm'},
     {"trans", required_argument, NULL, 'n'},
-    {"spp", required_argument, NULL, 'o'},
-    {"samples", required_argument, NULL, 'j'}
+    {"spp", required_argument, NULL, 'o'}
 };
 
 void usage(char **argv)
@@ -46,7 +45,6 @@ void usage(char **argv)
     printf("    -m, --periods=LONG      set the number of periods to LONG\n");
     printf("    -n, --trans=FLOAT       specify fraction FLOAT of periods which stands for transients\n");
     printf("    -o, --spp=INT           specify how many integration steps should be calculated for a single period of the driving force\n");
-    printf("    -j, --samples=INT       specify how many integration steps should be calculated for a single kernel call\n");
     printf("\n");
 }
 
@@ -55,7 +53,7 @@ void parse_cla(int argc, char **argv)
     float ftmp;
     int c, itmp;
 
-    while( (c = getopt_long(argc, argv, "b:c:i:l:m:n:o:j", options, NULL)) != EOF) {
+    while( (c = getopt_long(argc, argv, "a:b:c:d:e:f:g:h:i:l:m:n:o", options, NULL)) != EOF) {
         switch (c) {
             case 'b':
 		sscanf(optarg, "%f", &d_Dp);
@@ -77,9 +75,6 @@ void parse_cla(int argc, char **argv)
                 break;
             case 'o':
 		sscanf(optarg, "%d", &d_spp);
-                break;
-            case 'j':
-		sscanf(optarg, "%d", &d_samples);
                 break;
             }
     }
@@ -145,7 +140,6 @@ void run_moments()
 //actual moments kernel
 {
   long i;
-  int sample;
   //cache path and model parameters in local variables
   //this is only to maintain original GPGPU code
   float l_x = d_x,
@@ -162,9 +156,8 @@ void run_moments()
   //store step size in global mem
   d_dt = l_dt;
 
-  long l_steps = d_steps,
-       sample_trigger = lrint(d_trans * d_steps / d_samples),
-       steps_samples = l_steps/d_samples;
+  float l_steps = d_steps,
+	l_trigger = d_trigger;
 
   //counters for folding
   float xfc = 0.0f;
@@ -172,16 +165,18 @@ void run_moments()
   //jump countdowns
   int pcd = (int) floorf( -logf( u01() )/l_lambda/l_dt + 0.5f );
  
-  for (i = 0; i < steps_samples; i++) {
+  for (i = 0; i < l_steps; i++) {
 
-    for (sample = 0; sample < d_samples; sample++) {
       predcorr(&l_x, l_x, &pcd, pcd, l_Dp, l_lambda, l_dt);
+      
       //fold path parameters
-      fold(&l_x, l_x, 2.0f, &xfc, xfc);
+      if ( fabs(l_x) > 2.0f ) {
+	fold(&l_x, l_x, 2.0f, &xfc, xfc);
       }
 
-    if (i == sample_trigger) 
-      l_xb = l_x + xfc;
+      if (i == l_trigger) {
+	l_xb = l_x + xfc;
+      }
 
   }
 
@@ -195,6 +190,7 @@ void prepare()
 {
   //number of steps
   d_steps = d_periods*d_spp;
+  d_trigger = d_trans*d_steps;
 
   //initialization of rng
   srand(time(NULL));
@@ -252,7 +248,7 @@ int main(int argc, char **argv)
 
     initial_conditions();
     run_moments();
-    av += moments();
+  //  av += moments();
 
     if (i == dump_av - 1){
       te = current_timestamp();

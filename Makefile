@@ -31,4 +31,11 @@ dcpu: double_prog.c
 poisson: poisson.c
 	$(CCPU) $(OPTCPU) -o poisson poisson.c -lm
 
+poisson_noopt: poisson.c
+	$(CCPU) -o poisson_noopt poisson.c -lm
+
+dich: dich.c
+	$(CCPU) $(OPTCPU) -o dich dich.c -lm
+
+
 

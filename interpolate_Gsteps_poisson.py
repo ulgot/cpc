@@ -1,11 +1,14 @@
 import numpy as np
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
+import sys
 
-M = 11
+_file = sys.argv[1]
+
+M = 17
 x = [2**i for i in range(1,M+1)]
-Y = np.genfromtxt('cpoisson.dat', usecols=[1])
-Z = np.genfromtxt('cpoisson.dat', usecols=[2])
+Y = np.genfromtxt(_file, usecols=[1])
+Z = np.genfromtxt(_file, usecols=[2])
 
 lx = len(x)
 lY = len(Y)
@@ -47,11 +50,11 @@ for p in range(M):
   ist.append(sum(itime))
 
 _f = plt.figure()
-p1, p2, p3 = plt.loglog(x,sGs,'o',x,isGs,'k', x, [20*i for i in sGs], 'h', basex=2)
-_f.legend((p1,p2,p3),('5p simulated data','100p interpolated data','20*5p'))
-plt.savefig('interpolate_poisson_100p.png')
+p1, p2, p3 = plt.loglog(x,sGs,'o',x,isGs,'k', x, [(100/lG)*i for i in sGs], 'h', basex=2)
+_f.legend((p1,p2,p3),('%dp simulated data'%lG,'100p interpolated data','%dp * %d'%(lG,(100/lG))))
+plt.savefig('interpolate_100p_'+_file[:-3]+'png')
 
-out = open('cpupoisson.dat','w')
+out = open('cpu'+_file,'w')
 for i in range(M):
   print >>out, x[i], ist[i], isGs[i]
 out.close()
