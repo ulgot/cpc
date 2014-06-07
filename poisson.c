@@ -174,11 +174,11 @@ void run_moments()
  
   for (i = 0; i < steps_samples; i++) {
 
-    for (sample = 0; sample < d_samples; sample++) {
+    for (sample = 0; sample < d_samples; sample++) 
       predcorr(&l_x, l_x, &pcd, pcd, l_Dp, l_lambda, l_dt);
-      //fold path parameters
-      fold(&l_x, l_x, 2.0f, &xfc, xfc);
-      }
+
+    //fold path parameters
+    fold(&l_x, l_x, 2.0f, &xfc, xfc);
 
     if (i == sample_trigger) 
       l_xb = l_x + xfc;
