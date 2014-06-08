@@ -158,13 +158,11 @@ void run_moments()
   //step size & number of steps
   float l_dt = 1.0f/l_lambda/d_spp;
 
-
   //store step size in global mem
   d_dt = l_dt;
 
-  long l_steps = d_steps,
-       sample_trigger = lrint(d_trans * d_steps / d_samples),
-       steps_samples = l_steps/d_samples;
+  long steps_samples = d_steps/d_samples,
+       sample_trigger = lrint(d_trans * steps_samples);
 
   //counters for folding
   float xfc = 0.0f;

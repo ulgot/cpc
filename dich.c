@@ -20,8 +20,8 @@ int d_comp;
 
 //simulation
 float d_trans;
-long d_paths, d_periods, d_steps, d_trigger;
-int d_spp;
+long d_paths, d_periods, d_steps;
+int d_spp, d_samples;
 float d_x, d_xb, d_dx, d_dt;
 
 static struct option options[] = {
@@ -33,6 +33,7 @@ static struct option options[] = {
     {"paths", required_argument, NULL, 'l'},
     {"periods", required_argument, NULL, 'm'},
     {"trans", required_argument, NULL, 'n'},
+    {"samples", required_argument, NULL, 'j'},
     {"spp", required_argument, NULL, 'o'}
 };
 
@@ -51,6 +52,7 @@ void usage(char **argv)
     printf("    -m, --periods=LONG      set the number of periods to LONG\n");
     printf("    -n, --trans=FLOAT       specify fraction FLOAT of periods which stands for transients\n");
     printf("    -o, --spp=INT           specify how many integration steps should be calculated for a single period of the driving force\n");
+    printf("    -j, --samples=INT       specify how many integration steps should be calculated for a single kernel call\n");
     printf("\n");
 }
 
@@ -59,7 +61,7 @@ void parse_cla(int argc, char **argv)
     float ftmp;
     int c, itmp;
 
-    while( (c = getopt_long(argc, argv, "a:b:c:d:e:f:g:h:i:l:m:n:o", options, NULL)) != EOF) {
+    while( (c = getopt_long(argc, argv, "d:e:f:g:h:l:m:n:o:j", options, NULL)) != EOF) {
         switch (c) {
             case 'd':
 		sscanf(optarg, "%f", &d_fa);
@@ -87,6 +89,9 @@ void parse_cla(int argc, char **argv)
                 break;
             case 'o':
 		sscanf(optarg, "%d", &d_spp);
+                break;
+            case 'j':
+		sscanf(optarg, "%d", &d_samples);
                 break;
             }
     }
@@ -160,13 +165,13 @@ void run_moments()
 //actual moments kernel
 {
   long i;
+  int sample;
   //cache path and model parameters in local variables
   //this is only to maintain original GPGPU code
   float l_x = d_x,
 	l_xb;
 
   int l_comp = d_comp;
-
   float	l_fa = d_fa,
 	l_fb = d_fb,
 	l_mua = d_mua,
@@ -176,22 +181,22 @@ void run_moments()
   float l_dt;
 
   if (l_mua != 0.0f || l_mub != 0.0f) {
-      float taua, taub;
+    float taua, taub;
 
-      taua = 1.0f/l_mua;
-      taub = 1.0f/l_mub;
+    taua = 1.0f/l_mua;
+    taub = 1.0f/l_mub;
 
-      if (taua < taub) 
-	  l_dt = taua/d_spp;
-      else 
-	  l_dt = taub/d_spp;
+    if (taua < taub) 
+      l_dt = taua/d_spp;
+    else 
+      l_dt = taub/d_spp;
       
   }
   //store step size in global mem
   d_dt = l_dt;
 
-  float l_steps = d_steps,
-	l_trigger = d_trigger;
+  long step_samples = d_steps / d_samples,
+	sample_trigger = lrint(d_trans * step_samples);
 
   //counters for folding
   float xfc = 0.0f;
@@ -211,16 +216,15 @@ void run_moments()
     dcd = (int) floorf( -logf( u01() )/l_mub/l_dt + 0.5f);
   }
   
-  for (i = 0; i < l_steps; i++) {
+  for (i = 0; i < step_samples; i++) {
 
+    for (sample = 0; sample < d_samples; ++sample)
       predcorr(&l_x, l_x, &dcd, dcd, &dst, dst, l_fa, l_fb, l_mua, l_mub, l_dt);
       
-      //fold path parameters
-      if ( fabs(l_x) > 2.0f ) {
-	fold(&l_x, l_x, 2.0f, &xfc, xfc);
-      }
+    //fold the actual position
+    fold(&l_x, l_x, 2.0f, &xfc, xfc);
 
-      if (i == l_trigger) {
+      if (i == sample_trigger) {
 	l_xb = l_x + xfc;
       }
 
@@ -236,7 +240,6 @@ void prepare()
 {
   //number of steps
   d_steps = d_periods*d_spp;
-  d_trigger = d_trans*d_steps;
 
   //initialization of rng
   srand(time(NULL));
